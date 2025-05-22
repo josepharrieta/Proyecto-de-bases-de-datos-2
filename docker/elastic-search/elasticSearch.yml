@@ -1,0 +1,6 @@
+cluster.name: "restaurant-search-cluster"
+network.host: 0.0.0.0
+discovery.type: single-node
+xpack.security.enabled: false
+bootstrap.memory_lock: true
+indices.query.bool.max_clause_count: 4096  # Para búsquedas complejas
