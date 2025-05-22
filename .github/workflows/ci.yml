@@ -1,0 +1,53 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+
+env:
+  DB_ENGINE: mongo
+  MONGO_URI: mongodb://mongos:27017/restaurante?authSource=admin
+  POSTGRES_URI: postgres://postgres:postgres@postgres:5432/restaurant_db
+  ELASTICSEARCH_URL: http://elasticsearch:9200
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mongos:
+        image: mongo:5.0.31
+        ports: ['27017:27017']
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+      redis:
+        image: redis:alpine
+        ports: ['6379:6379']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Validate MongoDB Sharding
+        run: |
+          docker exec -it mongos mongosh --eval "sh.status()" | grep -q "restaurante.products"
+          docker exec -it mongos mongosh --eval "sh.status()" | grep -q "restaurante.reservations"

@@ -25,6 +25,55 @@ services:
       timeout: 10s
       retries: 30
 
+  mongo-config2:
+    build:
+      context: .
+      dockerfile: docker/mongo-config//Dockerfile
+    command: ["mongod", "--configsvr", "--replSet", "rs-config", "--bind_ip_all", "--port", "27020", "--keyFile", "/etc/mongo-keyfile"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongo_config2_data:/data/configdb
+    ports:
+      - "27020:27020"
+    secrets:
+      - source: mongo-keyfile
+        target: /etc/mongo-keyfile
+        mode: 0400
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27020", "--eval", "rs.status().ok"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  mongo-config3:
+    build:
+      context: .
+      dockerfile: docker/mongo-config//Dockerfile
+    command: ["mongod", "--configsvr", "--replSet", "rs-config", "--bind_ip_all", "--port", "27021", "--keyFile", "/etc/mongo-keyfile"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongo_config3_data:/data/configdb
+    ports:
+      - "27021:27021"
+    secrets:
+      - source: mongo-keyfile
+        target: /etc/mongo-keyfile
+        mode: 0400
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27021", "--eval", "rs.status().ok"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+
 
   # ---- Réplica Set (1 primario + 2 secundarios) ----
   mongo-primary:
