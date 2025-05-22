@@ -12,7 +12,7 @@ esta es la estructura actual, dime todos los archivos que necesitas ver para pod
 
 
 
-├── PROYECTO-RESTAURANTE
+├── PROYECTO-DE-BASES-DE-DATOS-2
 │   ├── .github
 │   │   └── workflows
 │   │			└── ci.yml
@@ -21,25 +21,28 @@ esta es la estructura actual, dime todos los archivos que necesitas ver para pod
 │   └── docker
 ├── docker
 │   ├── elastic-search
-│   │   └── elasticSearch.yml
+│   │   └── elasticSearch.
+│   └── mongo-config
+│   │    └── init-config.js
 │   └── mongoDB
-│       ├── replica-set
-│       │   ├── primary
-│       │   │   ├── Dockerfile
-│       │   │   └── init.js
-│       │   ├── secondary1
-│       │   │   ├── Dockerfile
-│       │   │   └── init.js
-│       │   └── secondary2
-│       │       ├── Dockerfile
-│       │       └── init.js
-│       └── mongo-keyfile
+│   │    ├── replica-set
+│   │    │   ├── primary
+│   │    │   │   ├── Dockerfile
+│   │    │   │   └── init.js
+│   │    │   ├── secondary1
+│   │    │   │   ├── Dockerfile
+│   │    │   │   └── init.js
+│   │    │   └── secondary2
+│   │    │       ├── Dockerfile
+│   │    │       └── init.js
+│   │    └── mongo-keyfile
+│   └── nginx
+│       └── nginnx.conf
 ├── search-service
 │   ├── src
 │   │   ├── controllers
 │   │   │   └── searchController.js
 │   │   ├── routes
-│   │   │   ├── searchRoute.js
 │   │   │   └── searchRoutes.js
 │   │   └── services
 │   │       ├── elasticClient.js
@@ -67,7 +70,6 @@ esta es la estructura actual, dime todos los archivos que necesitas ver para pod
 │   ├── middleware
 │   │   │   ├── authMiddleware.js
 │   │   │   └── roleMiddleware.js
-│   │   └── middleware.js
 │   ├── models
 │   │   ├── mongoModels
 │   │   │   ├── Menu.js
@@ -155,11 +157,21 @@ esta es la estructura actual, dime todos los archivos que necesitas ver para pod
 │   │   │   └── jwtService.js
 │   │   └── utils
 │   │   │    ├── helpers.js
-│   │   ├── index.js
-│   ├── helpers.js
-│   └── index.js
+│       └── index.js
 ├── test
 │   ├── unit
+│   │   ├── authController.test.js
+│   │   ├── menuController.test.js
+│   │   ├── menuItemController.test.js
+│   │   ├── orderController.test.js
+│   │   ├── orderItemController.test.js
+│   │   ├── productCategoryController.test.js
+│   │   ├── productController.test.js
+│   │   ├── reservationController.test.js
+│   │   ├── restaurantAvailabilityControl.test.js
+│   │   ├── restaurantController.test.js
+│   │   ├── roleController.test.js
+│   │   ├── userController.test.js
 │   └── integration
 ├── env
 ├── .gitignore
@@ -171,8 +183,7 @@ esta es la estructura actual, dime todos los archivos que necesitas ver para pod
 ├── package-lock.json
 ├── package.json
 └── README.md
-└── docs
-    └── documentacion_tecnica.pdf
+
 
 
 

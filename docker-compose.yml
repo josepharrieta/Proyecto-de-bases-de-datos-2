@@ -1,333 +1,188 @@
+version: '3.8'
+
 services:
-  # ---- MongoDB Sharded Cluster ----
-  # --- Config Server (Réplica Set de 1 nodo) ---
-  mongo-config1:
-    build:
-      context: .
-      dockerfile: docker/mongo-config//Dockerfile
-    command: ["mongod", "--configsvr", "--replSet", "rs-config", "--bind_ip_all", "--port", "27019", "--keyFile", "/etc/mongo-keyfile"]
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+  # MongoDB Configuration Server
+  mongo-config:
+    image: mongo:6.0
+    container_name: mongo-config
+    command: mongod --configsvr --replSet configReplSet --port 27019 --dbpath /data/configdb
     volumes:
-      - mongo_config1_data:/data/configdb
-    ports:
-      - "27019:27019"
-    secrets:
-      - source: mongo-keyfile
-        target: /etc/mongo-keyfile
-        mode: 0400
+      - mongo-config-data:/data/configdb
+      - ./docker/mongo-config:/docker-entrypoint-initdb.d
     networks:
-      - backend
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "rs.status().ok"]
-      interval: 10s
-      timeout: 10s
-      retries: 30
+      - restaurant-network
+    restart: unless-stopped
 
-  mongo-config2:
+  # MongoDB Shard 1 - Primary
+  mongo-shard1-primary:
     build:
-      context: .
-      dockerfile: docker/mongo-config//Dockerfile
-    command: ["mongod", "--configsvr", "--replSet", "rs-config", "--bind_ip_all", "--port", "27020", "--keyFile", "/etc/mongo-keyfile"]
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      context: ./docker/mongoDB/replica-set/primary
+      dockerfile: Dockerfile
+    container_name: mongo-shard1-primary
+    command: mongod --shardsvr --replSet shard1ReplSet --port 27018 --dbpath /data/db
     volumes:
-      - mongo_config2_data:/data/configdb
-    ports:
-      - "27020:27020"
-    secrets:
-      - source: mongo-keyfile
-        target: /etc/mongo-keyfile
-        mode: 0400
+      - mongo-shard1-primary-data:/data/db
+      - ./docker/mongoDB/mongo-keyfile:/opt/keyfile
     networks:
-      - backend
-    healthcheck:
-      test: ["CMD", "mongosh", "--port", "27020", "--eval", "rs.status().ok"]
-      interval: 10s
-      timeout: 10s
-      retries: 30
+      - restaurant-network
+    restart: unless-stopped
 
-  mongo-config3:
+  # MongoDB Shard 1 - Secondary 1
+  mongo-shard1-secondary1:
     build:
-      context: .
-      dockerfile: docker/mongo-config//Dockerfile
-    command: ["mongod", "--configsvr", "--replSet", "rs-config", "--bind_ip_all", "--port", "27021", "--keyFile", "/etc/mongo-keyfile"]
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      context: ./docker/mongoDB/replica-set/secondary1
+      dockerfile: Dockerfile
+    container_name: mongo-shard1-secondary1
+    command: mongod --shardsvr --replSet shard1ReplSet --port 27018 --dbpath /data/db
     volumes:
-      - mongo_config3_data:/data/configdb
-    ports:
-      - "27021:27021"
-    secrets:
-      - source: mongo-keyfile
-        target: /etc/mongo-keyfile
-        mode: 0400
+      - mongo-shard1-secondary1-data:/data/db
+      - ./docker/mongoDB/mongo-keyfile:/opt/keyfile
     networks:
-      - backend
-    healthcheck:
-      test: ["CMD", "mongosh", "--port", "27021", "--eval", "rs.status().ok"]
-      interval: 10s
-      timeout: 10s
-      retries: 30
+      - restaurant-network
+    restart: unless-stopped
 
-
-
-  # ---- Réplica Set (1 primario + 2 secundarios) ----
-  mongo-primary:
+  # MongoDB Shard 1 - Secondary 2
+  mongo-shard1-secondary2:
     build:
-      context: .
-      dockerfile: docker/mongoDB/replica-set/primary/Dockerfile
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
-    ports:
-      - "27101:27017"
-    command: ["mongod", "--shardsvr", "--replSet", "rs-shard1", "--port", "27017", "--bind_ip_all"]
+      context: ./docker/mongoDB/replica-set/secondary2
+      dockerfile: Dockerfile
+    container_name: mongo-shard1-secondary2
+    command: mongod --shardsvr --replSet shard1ReplSet --port 27018 --dbpath /data/db
+    volumes:
+      - mongo-shard1-secondary2-data:/data/db
+      - ./docker/mongoDB/mongo-keyfile:/opt/keyfile
+    networks:
+      - restaurant-network
+    restart: unless-stopped
+
+  # MongoDB Router (mongos)
+  mongo-router:
+    image: mongo:6.0
+    container_name: mongo-router
+    command: mongos --configdb configReplSet/mongo-config:27019 --port 27017
     depends_on:
-      mongo-config1:
-        condition: service_healthy
-    container_name: mongo-primary
-    secrets:
-      - source: mongo-keyfile
-        target: /etc/mongo-keyfile
-        mode: 0400
-    volumes:
-      - ./docker/mongoDB/replica-set/primary/init.js:/docker-entrypoint-initdb.d/init.js:ro
-      - mongo_primary_data:/data/db
-    hostname: mongo-primary
+      - mongo-config
+      - mongo-shard1-primary
     networks:
-      backend:
-        aliases:
-          - mongo-primary
-          - mongo-primary.local  # Alias adicional
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-
-  mongo-secondary1:
-    build:
-      context: .
-      dockerfile: docker/mongoDB/replica-set/secondary1/Dockerfile
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
-    container_name: mongo-secondary1
-    ports:
-      - "27102:27017"
-    command: ["mongod", "--shardsvr", "--replSet", "rs-shard1", "--port", "27017", "--bind_ip_all"]
-    depends_on:
-      mongo-primary:
-        condition: service_healthy
-      mongo-config1:
-        condition: service_healthy
-    secrets:
-      - source: mongo-keyfile
-        target: /etc/mongo-keyfile
-        mode: 0400
-    volumes:
-      - mongo_secondary1_data:/data/db
-    hostname: mongo-secondary1
-    networks:
-      backend:
-        aliases:
-          - mongo-secondary1
-          - mongo-secondary1.local
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  mongo-secondary2:
-    build:
-      context: .
-      dockerfile: docker/mongoDB/replica-set/secondary2/Dockerfile
-    container_name: mongo-secondary2
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
-    ports:
-      - "27103:27017"
-    command: ["mongod", "--shardsvr", "--replSet", "rs-shard1", "--port", "27017", "--bind_ip_all"]
-    depends_on:
-      mongo-primary:
-        condition: service_healthy
-    secrets:
-      - source: mongo-keyfile
-        target: /etc/mongo-keyfile
-        mode: 0400
-    volumes:
-      - mongo_secondary2_data:/data/db
-    hostname: mongo-secondary2
-    networks:
-      backend:
-        aliases:
-          - mongo-secondary2
-          - mongo-secondary2.local
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-
- # --- Mongos (Router) ---
-  mongos:
-    image: mongo:${MONGO_VERSION} 
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
-    command: mongos --configdb rs-config/mongo-config1:27019,mongo-config2:27019,mongo-config3:27019 --bind_ip_all --keyFile /etc/mongo-keyfile
-    depends_on:
-      mongo-config1:
-        condition: service_healthy
-      mongo-config2:
-        condition: service_started
-      mongo-config3:
-        condition: service_started
-      mongo-primary:
-        condition: service_healthy
+      - restaurant-network
     ports:
       - "27017:27017"
-    secrets:
-      - source: mongo-keyfile
-        target: /etc/mongo-keyfile
-        mode: 0400
-    networks:
-      - backend
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    restart: unless-stopped
 
-  # ---- PostgreSQL ----
+  # PostgreSQL
   postgres:
-    image: postgres:${POSTGRES_VERSION}
+    image: postgres:15
+    container_name: postgres-db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_DB: restaurant_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - restaurant-network
     ports:
       - "5432:5432"
-    networks:
-      - backend
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+    restart: unless-stopped
 
-  # ---- ElasticSearch ----
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.5.0
-    environment:
-      - discovery.type=single-node
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
-      - xpack.security.enabled=false
-    volumes:
-      - es_data:/usr/share/elasticsearch/data
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    ports:
-      - "9200:9200"
-    networks:
-      - backend
-
-  # ---- Redis ----
+  # Redis Cache
   redis:
-    image: redis:alpine
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    image: redis:7-alpine
+    container_name: redis-cache
+    command: redis-server --appendonly yes
     volumes:
-      - redis_data:/data
+      - redis-data:/data
+    networks:
+      - restaurant-network
     ports:
       - "6379:6379"
-    networks:
-      - backend
+    restart: unless-stopped
 
-  # ---- API Principal ----
-  api:
-    build: .
+  # ElasticSearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    container_name: elasticsearch
     environment:
-      DB_TYPE: ${DB_TYPE}
-      JWT_SECRET: ${JWT_SECRET}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
-      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongos:27017/restaurante?authSource=admin
-      POSTGRES_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
     volumes:
-      - .:/app
-    ports:
-      - "3000:3000"
-    depends_on:
-      mongos:  # Reemplaza mongos por el primario
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
+      - elasticsearch-data:/usr/share/elasticsearch/data
     networks:
-      - backend
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - restaurant-network
+    ports:
+      - "9200:9200"
+    restart: unless-stopped
 
-  # ---- Microservicio de Búsqueda ----
+  # Main API Service (scalable)
+  api-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - DATABASE_TYPE=mongodb
+      - MONGODB_URI=mongodb://mongo-router:27017/restaurant_db
+      - POSTGRES_URI=postgresql://postgres:postgres123@postgres:5432/restaurant_db
+      - REDIS_URL=redis://redis:6379
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - JWT_SECRET=your-super-secret-jwt-key-here-change-in-production
+      - PORT=3000
+    depends_on:
+      - mongo-router
+      - postgres
+      - redis
+      - elasticsearch
+    networks:
+      - restaurant-network
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+  # Search Service (scalable)
   search-service:
-    build: 
+    build:
       context: ./search-service
       dockerfile: Dockerfile
     environment:
-      - ELASTICSEARCH_URL=${ELASTICSEARCH_URL}
-    ports:
-      - "3001:3000"
+      - NODE_ENV=production
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - MONGODB_URI=mongodb://mongo-router:27017/restaurant_db
+      - PORT=3001
     depends_on:
       - elasticsearch
+      - mongo-router
     networks:
-      - backend
+      - restaurant-network
+    restart: unless-stopped
+    deploy:
+      replicas: 2
 
-  # ---- Balanceador de Carga (Nginx) ----
-  load-balancer:
+  # Nginx Load Balancer
+  nginx:
     image: nginx:alpine
+    container_name: nginx-lb
     volumes:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
     ports:
       - "80:80"
     depends_on:
-      - api
+      - api-service
       - search-service
     networks:
-      - backend
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-secrets:
-  mongo-keyfile:
-    file: ./docker/mongoDB/replica-set/mongo-keyfile 
-
-volumes:
-  mongo_config1_data:
-  mongo_config2_data:
-  mongo_config3_data:
-  mongo_primary_data:
-  mongo_secondary1_data:
-  mongo_secondary2_data:
-  postgres_data:
-  es_data:
-  redis_data:
+      - restaurant-network
+    restart: unless-stopped
 
 networks:
-  backend:
+  restaurant-network:
     driver: bridge
+
+volumes:
+  mongo-config-data:
+  mongo-shard1-primary-data:
+  mongo-shard1-secondary1-data:
+  mongo-shard1-secondary2-data:
+  postgres-data:
+  redis-data:
+  elasticsearch-data:
